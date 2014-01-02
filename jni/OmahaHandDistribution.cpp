@@ -140,9 +140,6 @@ StdDeck_CardMask OmahaHandDistribution::Choose(StdDeck_CardMask deadCards, bool&
 	MTRand53 rand;
 	int handCount = m_hands.size();
 	bCollisionError = false;
-	if (handCount <= 0) {
-		goto error;
-	}
 
 	// This is a little bit of a hack. So this OmahaHandDistribution has N potential
 	// hands and we'll choose one of these randomly for each trial. Fine. But it's
@@ -172,7 +169,7 @@ StdDeck_CardMask OmahaHandDistribution::Choose(StdDeck_CardMask deadCards, bool&
 	// (by chance) an AKAK, then player 5's distribution is blocked. All the cards
 	// are used elsewhere. In this case, since it happens so rarely, we want to
 	// throw the entire trial out.
-  error:
+
 	bCollisionError = true;
 	StdDeck_CardMask nullHand;
 	StdDeck_CardMask_RESET(nullHand);

@@ -30,5 +30,8 @@ using namespace std;
 
 #ifndef NDEBUG
 #define TRACE(...) do { printf(__VA_ARGS__); } while (0)
-#define ASSERT assert
+#define ASSERT(...) assert(__VA_ARGS__)
+#else
+#define TRACE(...)
+#define ASSERT(...)
 #endif

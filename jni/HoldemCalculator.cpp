@@ -17,23 +17,21 @@
 // relying on it. The user must assume the entire risk of using the source code.
 //
 ///////////////////////////////////////////////////////////////////////////////
-
-#include <cassert>
 #include "HandDistributions.h"
 #include <inlines/eval.h>
+#include <cassert>
+#include <cstdint>
 
 #include "HoldemCalculator.h"
 #include "HoldemHandDistribution.h"
 #include "CardConverter.h"
-
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Default constructor for HoldemCalculator objects.
 ///////////////////////////////////////////////////////////////////////////////
 HoldemCalculator::HoldemCalculator(void)
 {
-  m_MonteCarloThreshhold = 10000; //20000000;
+  m_MonteCarloThreshhold = 20000000;
 }
 
 
@@ -97,7 +95,7 @@ int HoldemCalculator::CalculateEE(const char* hands, const char* board, const ch
 ///////////////////////////////////////////////////////////////////////////////
 void HoldemCalculator::PreCalculate(const char* hands, const char* board, const char* dead, int numberOfTrials, int* combos, double* results)
 {
-  printf("\n\n************************************************************\n"
+  TRACE("\n\n************************************************************\n"
 	"* CALCULATING MATCHUP: Board = [%s]\n"
 	"************************************************************\n",
 	(board && strlen(board) > 0) ? board : "PREFLOP" );
@@ -307,7 +305,8 @@ void HoldemCalculator::EvalOneTrial
 
       // Evaluate the resulting hand...cur is a HandVal we can compare to
       // the value of other hands in order to determine a winner.
-      cur = StdDeck_StdRules_EVAL_N(temp, 7);
+      cur = StdDeck_StdRules_EVAL_LUT_N(temp, 7);
+      //cur = StdDeck_StdRules_EVAL_N(temp, 7);
 
       // If this hand is the best we've seen so far, adjust state...
       if (cur > best)
@@ -374,10 +373,10 @@ int64_t HoldemCalculator::PostCalculate()
       m_pResults[r] = (m_wins[r] / m_actualTrials) * 100.0;
       m_pCombos[r] = m_dists[r]->GetCount();
 		
-      printf("Player %2d:   %7d   %5.2f%%    \"%s\"\n", r+1, m_pCombos[r], m_pResults[r], m_dists[r]->GetText());
+      TRACE("Player %2d:   %7d   %5.2f%%    \"%s\"\n", r+1, m_pCombos[r], m_pResults[r], m_dists[r]->GetText());
     }
 
-  printf("\nRan %llu trials via %s.\n", m_actualTrials, m_wasMonteCarlo ? "Monte Carlo" : "exhaustive enumeration");
+  TRACE("\nRan %llu trials via %s.\n", m_actualTrials, m_wasMonteCarlo ? "Monte Carlo" : "exhaustive enumeration");
 
   return m_actualTrials;
 }
@@ -540,20 +539,20 @@ uint64_t HoldemCalculator::EstimatePossibleOutcomes()
 {
   uint64_t last = 1;
   uint64_t total = 1;
-
+  uint64_t max = 0xFFFFFFFFFFFFFFFF;
   for (size_t hand = 0; hand < m_dists.size(); hand++)
     {
       total *= m_dists[hand]->GetCount();
       if (last > total) // overflow
-	return 0xFFFFFFFFFFFFFFFF;
+          return max;
       last = total;
     }
 
   total *= CalculateCombinations( (52 - (m_totalHands * 2)) - m_numberOfBoardCards, 5 - m_numberOfBoardCards);
 
-  //printf("Estimated combinations: %I64d\n", total);
+  //TRACE("Estimated combinations: %I64d\n", total);
 
-  return (total < last) ? 0xFFFFFFFFFFFFFFFF :	total;
+  return (total < last) ? max :	total;
 }
 
 

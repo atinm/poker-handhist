@@ -18,7 +18,6 @@
 // relying on it. The user must assume the entire risk of using the source code.
 //
 ///////////////////////////////////////////////////////////////////////////////
-#include <cassert>
 
 #include "HandDistributions.h"
 #include <inlines/eval_omaha.h>
@@ -34,7 +33,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 OmahaCalculator::OmahaCalculator(bool omahaHiLo)
 {
-  m_MonteCarloThreshhold = 10000; //20000000;
+  m_MonteCarloThreshhold = 20000000;
   m_omahaHiLo = omahaHiLo;
 }
 
@@ -99,7 +98,7 @@ int OmahaCalculator::CalculateEE(const char* hands, const char* board, const cha
 ///////////////////////////////////////////////////////////////////////////////
 void OmahaCalculator::PreCalculate(const char* hands, const char* board, const char* dead, int numberOfTrials, int* combos, double* results)
 {
-  printf("\n\n************************************************************\n"
+  TRACE("\n\n************************************************************\n"
 	"* CALCULATING MATCHUP: Board = [%s]\n"
 	"************************************************************\n",
 	(board && strlen(board) > 0) ? board : "PREFLOP" );
@@ -235,7 +234,7 @@ int OmahaCalculator::CreateHandDistributions(const char* hands)
 
   m_deadMaskDyn = m_deadMask;
 
-  assert(m_numberOfRangedHands + m_numberOfSpecificHands == m_totalHands);
+  ASSERT(m_numberOfRangedHands + m_numberOfSpecificHands == m_totalHands);
 
   return m_totalHands;
 }
@@ -308,11 +307,12 @@ void OmahaCalculator::EvalOneTrial
   // Evaluate each players full 7-card hand in turn...
 
   for (int i = 0; i < playerCount; i++) {
-      // Evaluate the resulting hand...curhi and curlo are HandVals we can compare to
-      // the value of other hands in order to determine a winner. Use HiLow8_EVAL
-      // as it can do both depending on whether the loval parameter is passed.
-      if (StdDeck_OmahaHiLow8_EVAL_LUT(m_dists[i]->Current(), boardFragment, &curhi, m_omahaHiLo ? &curlo : NULL)) {
-	printf("Error evaluating OmahaHi\n");
+    // Evaluate the resulting hand...curhi and curlo are HandVals we can compare to
+    // the value of other hands in order to determine a winner. Use HiLow8_EVAL
+    // as it can do both depending on whether the loval parameter is passed.
+    int ret = StdDeck_OmahaHiLow8_EVAL_LUT(m_dists[i]->Current(), boardFragment, &curhi, m_omahaHiLo ? &curlo : NULL);
+    if (ret) {
+        printf("Error evaluating OmahaHi, %d\n", ret);
 	printf("Hand: ");
 	CardMask c = m_dists[i]->Current();
 	StdDeck_printMask(c);
@@ -421,10 +421,10 @@ int64_t OmahaCalculator::PostCalculate()
       m_pResults[r] = (m_wins[r] / m_actualTrials) * 100.0;
       m_pCombos[r] = m_dists[r]->GetCount();
 
-      printf("Player %2d:   %7d   %5.2f%%    \"%s\"\n", r+1, m_pCombos[r], m_pResults[r], m_dists[r]->GetText());
+      TRACE("Player %2d:   %7d   %5.2f%%    \"%s\"\n", r+1, m_pCombos[r], m_pResults[r], m_dists[r]->GetText());
     }
 
-  printf("\nRan %llu trials via %s.\n", m_actualTrials, m_wasMonteCarlo ? "Monte Carlo" : "exhaustive enumeration");
+  TRACE("\nRan %llu trials via %s.\n", m_actualTrials, m_wasMonteCarlo ? "Monte Carlo" : "exhaustive enumeration");
 
   return m_actualTrials;
 }
@@ -592,15 +592,15 @@ uint64_t OmahaCalculator::EstimatePossibleOutcomes()
     {
       total *= m_dists[hand]->GetCount();
       if (last > total) // overflow
-    	  return 0xFFFFFFFFFFFFFFFF;
+	return UINT64_MAX;
       last = total;
     }
 
   total *= CalculateCombinations( (52 - (m_totalHands * 2)) - m_numberOfBoardCards, 5 - m_numberOfBoardCards);
 
-  //printf("Estimated combinations: %lld\n", total);
+  //TRACE("Estimated combinations: %lld\n", total);
 
-  return (total < last) ? 0xFFFFFFFFFFFFFFFF :	total;
+  return (total < last) ? UINT64_MAX :	total;
 }
 
 
