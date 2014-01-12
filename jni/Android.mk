@@ -9,10 +9,8 @@ LOCAL_SRC_FILES := \
 	Card.cpp \
 	CardConverter.cpp \
 	HoldemAgnosticHand.cpp \
-	HoldemCalculator.cpp \
 	HoldemHandDistribution.cpp \
 	OmahaAgnosticHand.cpp \
-	OmahaCalculator.cpp \
 	OmahaHandDistribution.cpp \
 	mtrand.cpp
 LOCAL_SHARED_LIBRARIES += poker-eval

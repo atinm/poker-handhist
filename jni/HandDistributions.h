@@ -28,9 +28,9 @@
 #include <cassert>
 using namespace std;
 
-#ifndef NDEBUG
+#ifdef NDEBUG
 #define TRACE(...) do { printf(__VA_ARGS__); } while (0)
-#define ASSERT(...) assert(__VA_ARGS__)
+#define ASSERT assert
 #else
 #define TRACE(...)
 #define ASSERT(...)
