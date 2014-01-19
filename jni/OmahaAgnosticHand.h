@@ -73,11 +73,13 @@ public:
   int Instantiate(const char* handText, const char* deadCards, vector<StdDeck_CardMask>& hands);
   int Instantiate(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& hands);
   static bool IsSpecificHand(const char* handText);
+  static bool IsPercentRange(const char* handText, double &lowerBound, double &upperBound);
+  static bool IsRandomHand(const char *handText);
 
 private:
   int InstantiateRandom(StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands);
   void Reset();
-
+  int InstantiatePercentRange(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands);
   int m_rankFloor[4];
   int m_rankCeil[4];
   int m_suitFloor[4];
@@ -93,6 +95,8 @@ private:
     m_isAtLeastSingleSuit, m_isAtLeastThreeSuit;
   // Ace related filters
   bool m_isSuitedAce, m_isSuitedNonAce;
+  bool m_isPercent;
+  double m_lowerBound, m_upperBound;
 
   int m_seenCards;
 

@@ -45,16 +45,20 @@ public:
 	static int Parse(const char* handText, const char* deadCards);
 	static int Parse(const char* handText, StdDeck_CardMask deadCards);
 
-	static int Instantiate(const char* handText, const char* deadCards, vector<StdDeck_CardMask>& hands);
-	static int Instantiate(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& hands);
+	int Instantiate(const char* handText, const char* deadCards, vector<StdDeck_CardMask>& hands);
+	int Instantiate(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& hands);
 
 	static bool IsSpecificHand(const char* handText);
+	static bool IsPercentRange(const char* handText, double &lowerBound, double &upperBound);
 
 private:
+	bool m_isPercent;
+	double m_lowerBound, m_upperBound;
 
-	static int InstantiateRandom(StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands);
+	int InstantiateRandom(StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands);
 	static bool IsSuited(const char*);
 	static bool IsOffSuit(const char*);
 	static bool IsInclusive(const char*);
 	static bool IsPair(const char*);
+	int InstantiatePercentRange(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands);
 };

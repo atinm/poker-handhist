@@ -17,11 +17,17 @@
 // relying on it. The user must assume the entire risk of using the source code.
 //
 ///////////////////////////////////////////////////////////////////////////////
+#include <android/log.h>
 #include <inlines/eval.h>
 #include "HandDistributions.h"
 #include "HoldemAgnosticHand.h"
 #include "Card.h"
+#include "he10maxordering.h"
+#include "he6maxordering.h"
 
+#define  LOG_TAG    "OmahaEqCalc"
+#define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
+#define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,23 +42,24 @@
 ///////////////////////////////////////////////////////////////////////////////
 int HoldemAgnosticHand::Parse(const char* handText, const char* deadText)
 {
-  StdDeck_CardMask deadCards;
-  StdDeck_CardMask_RESET(deadCards);
+    StdDeck_CardMask deadCards;
+    StdDeck_CardMask_RESET(deadCards);
 		
-  if (deadText && strlen(deadText))
-    {
-      int suit, rank;
-      StdDeck_CardMask hand;
-      for(const char* pCard = deadText; pCard != NULL; pCard += 2)
-	{
-	  rank = Card::CharToRank(*pCard);
-	  suit = Card::CharToSuit(*(pCard+1));
-	  hand = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit) );
-	  StdDeck_CardMask_OR(deadCards, deadCards, hand);
-	}
+    int len = deadText ? strlen(deadText) : 0;
+    if (len > 0) {
+        int suit, rank;
+        StdDeck_CardMask hand;
+        const char* pCard = deadText;
+        for(int i=0; i < len && *pCard != '\0'; i+=2) {
+            rank = Card::CharToRank(*pCard);
+            suit = Card::CharToSuit(*(pCard+1));
+            hand = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit) );
+            StdDeck_CardMask_OR(deadCards, deadCards, hand);
+            pCard += 2;
+        }
     }
 
-  return Parse(handText, deadCards);
+    return Parse(handText, deadCards);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,115 +72,123 @@ int HoldemAgnosticHand::Parse(const char* handText, const char* deadText)
 ///////////////////////////////////////////////////////////////////////////////
 int HoldemAgnosticHand::Parse(const char* handText, StdDeck_CardMask deadCards)
 {
-  if (strcmp(handText, "XxXx") == 0) {
-    return 1;
-  }
-  
-  if (IsSpecificHand(handText)) {
-    return 1;
-  }
-
-  char *newstr = strdup(handText);
-  const char *p = newstr;
-  bool suitOffsuit = false;
-  int seenCards = 0;
-
-  while (*p != '\0' && seenCards < 2) {
-    if (NULL != strchr("23456789TtJjQqKkAaXx", *p)) {
-      seenCards++;
-      p++; while (*p == ' ') p++;
-      if (NULL != strchr("23456789TtJjQqKkAaXx", *p)) {
-	p++; while (*p == ' ') p++;
-	if (NULL != strchr("SsOo", *p)) {
-	  seenCards++;
-	  suitOffsuit = true;
-	  p++; while (*p == ' ') p++;
-	  if (*p == '+') {
-	    p++; while (*p == ' ') p++;
-	  }
-	}
-	else if (*p == '+') {
-	  seenCards++;
-	  p++; while (*p == ' ') p++;
-	}
-	else if (*p == '-') {
-	  seenCards--;
-	  p++; while (*p == ' ') p++;
-	  if (NULL != strchr("23456789TtJjQqKkAa", *p)) {
-	    p++; while (*p == ' ') p++; seenCards++;
-	    if (NULL != strchr("23456789TtJjQqKkAa", *p)) {
-	      seenCards++;
-	      p++; while (*p == ' ') p++;
-	      if (*p != '\0') {
-		if (NULL != strchr("SsOo", *p)) {
-		  if (suitOffsuit) {
-		    p++; while (*p == ' ') p++;
-		  }
-		  else {
-		    printf("%d: Unexpected %c, at %s %d\n", __LINE__, *p, p, p-handText+1);
-		    goto error;
-		  }
-		}
-	      }
-	    }
-	    else {
-	      printf("%d: Unexpected %c, at %s %d\n", __LINE__, *p, p, p-handText+1);
-	      goto error;
-	    }
-	  }
-	}
-	else if (*p == '\0') {
-	  continue;
-	}
-	else {
-	  printf("%d: Unexpected %c, at %s %d\n", __LINE__, *p, p, p-handText+1);
-	  goto error;
-	}
-      }
-      else {
-	printf("%d: Unexpected %c, at %s %d\n", __LINE__, *p, p, p-handText+1);
-	goto error;
-      }
+    if (strcmp(handText, "XxXx") == 0) {
+        return 1;
     }
-    else {
-      goto error;
-    }
-  }
   
-  if (seenCards != 2) {
-    printf("Only saw %d cards in %s\n", seenCards, handText);
-    goto error;
-  }
-  if (*p != '\0') {
-    printf("Unexpected %s at end of %s\n", p, handText);
-    goto error;
-  }
+    if (IsSpecificHand(handText)) {
+        return 1;
+    }
 
-  return 1;
- error:
-  if (newstr) free(newstr);
-  return 0;
+    double low, high;
+    if (IsPercentRange(handText, low, high)) {
+        return 1; // valid
+    }
+
+    char *newstr = strdup(handText);
+    const char *p = newstr;
+    bool suitOffsuit = false;
+    bool isPair = false;
+    int seenCards = 0;
+
+    while (*p != '\0' && seenCards < 2) {
+        if (NULL != strchr("23456789TtJjQqKkAaXx", *p)) {
+            seenCards++;
+            p++; while (*p == ' ') p++;
+            if (*p != '\0' && NULL != strchr("23456789TtJjQqKkAaXx", *p)) {
+                p++; while (*p == ' ') p++;
+                if (*p != '\0' && NULL != strchr("SsOo", *p)) {
+                    seenCards++;
+                    suitOffsuit = true;
+                    p++; while (*p == ' ') p++;
+                    if (*p == '+') {
+                        p++; while (*p == ' ') p++;
+                    }
+                }
+                else if (*p == '+') {
+                    seenCards++;
+                    p++; while (*p == ' ') p++;
+                }
+                else if (*p == '-') {
+                    seenCards--;
+                    p++; while (*p == ' ') p++;
+                    if (*p != '\0' && NULL != strchr("23456789TtJjQqKkAa", *p)) {
+                        p++; while (*p == ' ') p++; seenCards++;
+                        if (*p != '\0' && NULL != strchr("23456789TtJjQqKkAa", *p)) {
+                            seenCards++;
+                            p++; while (*p == ' ') p++;
+                            if (*p != '\0') {
+                                if (*p != '\0' && NULL != strchr("SsOo", *p)) {
+                                    if (suitOffsuit) {
+                                        p++; while (*p == ' ') p++;
+                                    }
+                                    else {
+                                        LOGE("%d: Unexpected %c, at %s %d", __LINE__, *p, p, p-handText-1); 
+                                        goto error;
+                                    }
+                                }
+                            }
+                        }
+                        else {
+                            LOGE("%d: Unexpected %c, at %s %d", __LINE__, *p, p, p-handText-1); 
+                            goto error;
+                        }
+                    }
+                }
+                else if (*p == '\0') {
+                    seenCards++;
+                    suitOffsuit = true; // could also be a pair
+                    continue;
+                }
+                else {
+                    LOGE("%d: Unexpected %c, at %s %d", __LINE__, *p, p, p-handText-1); 
+                    goto error;
+                }
+            }
+            else {
+                LOGE("%d: Unexpected %c, at %s %d", __LINE__, *p, p, p-handText-1); 
+                goto error;
+            }
+        }
+        else {
+            goto error;
+        }
+    }
+  
+    if (seenCards != 2) {
+        LOGE("Only saw %d cards in %s\n", seenCards, handText);
+        goto error;
+    }
+    if (*p != '\0') {
+        LOGE("Unexpected %s at end of %s\n", p, handText);
+        goto error;
+    }
+
+    return 1;
+  error:
+    if (newstr) free(newstr);
+    return 0;
 }
 
 int HoldemAgnosticHand::Instantiate(const char* handText, const char* deadText, vector<StdDeck_CardMask>& specificHands)
 {
-  StdDeck_CardMask deadCards;
-  StdDeck_CardMask_RESET(deadCards);
+    StdDeck_CardMask deadCards;
+    StdDeck_CardMask_RESET(deadCards);
 		
-  if (deadText && strlen(deadText))
+    if (deadText && strlen(deadText))
     {
-      int suit, rank;
-      StdDeck_CardMask hand;
-      for(const char* pCard = deadText; pCard != NULL; pCard += 2)
-	{
-	  rank = Card::CharToRank(*pCard);
-	  suit = Card::CharToSuit(*(pCard+1));
-	  hand = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit) );
-	  StdDeck_CardMask_OR(deadCards, deadCards, hand);
-	}
+        int suit, rank;
+        StdDeck_CardMask hand;
+        for(const char* pCard = deadText; pCard != NULL; pCard += 2)
+        {
+            rank = Card::CharToRank(*pCard);
+            suit = Card::CharToSuit(*(pCard+1));
+            hand = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit) );
+            StdDeck_CardMask_OR(deadCards, deadCards, hand);
+        }
     }
 
-  return Instantiate(handText, deadCards, specificHands);
+    return Instantiate(handText, deadCards, specificHands);
 }
 
 
@@ -188,156 +203,162 @@ int HoldemAgnosticHand::Instantiate(const char* handText, const char* deadText, 
 ///////////////////////////////////////////////////////////////////////////////
 int HoldemAgnosticHand::Instantiate(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands)
 {
-  if (strcmp(handText, "XxXx") == 0)
+    if (strcmp(handText, "XxXx") == 0)
     {
-      return InstantiateRandom(deadCards, specificHands);
+        return InstantiateRandom(deadCards, specificHands);
     }
 
-  bool isPlus = (NULL != strchr(handText, '+'));
-  bool isSlice = (NULL != strchr(handText, '-'));
-  int handRanks[2] = {0,0};
-  int rankCeils[2] = {0,0};
-
-  if (isSlice)
-    {
-      const char* index = strchr(handText, '-');
-
-      char handCeil[4];
-      char handFloor[4];
-      strncpy(handCeil, handText, index - handText);
-      strcpy(handFloor, index + 1);
-
-      handRanks[0] = Card::CharToRank(handFloor[0]);
-      handRanks[1] = Card::CharToRank(handFloor[1]);
-      rankCeils[0] = Card::CharToRank(handCeil[0]);
-      rankCeils[1] = Card::CharToRank(handCeil[1]);
-    }
-  else
-    {
-      handRanks[0] = Card::CharToRank(handText[0]);
-      handRanks[1] = Card::CharToRank(handText[1]);
-      rankCeils[0] = isPlus ? Card::Ace : handRanks[0];
-      rankCeils[1] = (NULL != strchr("Xx", handText[1])) ? Card::Ace : Card::King;
+    double low, high;
+    if (IsPercentRange(handText, low, high)) {
+        InstantiatePercentRange(handText, deadCards, specificHands);
+        return specificHands.size();
     }
 
-  StdDeck_CardMask hand;
+    bool isPlus = (NULL != strchr(handText, '+'));
+    bool isSlice = (NULL != strchr(handText, '-'));
+    int handRanks[2] = {0,0};
+    int rankCeils[2] = {0,0};
 
-  int combos = 0;
-
-  if (IsPair(handText))
+    if (isSlice)
     {
-      StdDeck_CardMask card1, card2;
+        const char* index = strchr(handText, '-');
 
-      for (int rank = handRanks[0]; rank <= rankCeils[0]; rank++)
-	{
-	  for(int suit1 = StdDeck_Suit_FIRST; suit1 <= StdDeck_Suit_LAST; suit1++)
-	    {
-	      for (int suit2 = suit1 + 1; suit2 <= StdDeck_Suit_LAST; suit2++)
-		{
-		  card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit1) );
-		  card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit2) );
-		  StdDeck_CardMask_OR(hand, card1, card2);
-		  if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
-		    {
-		      specificHands.push_back(hand);
-		      combos++;
-		    }
-		}
-	    }
+        char handCeil[4];
+        char handFloor[4];
+        strncpy(handCeil, handText, index - handText);
+        strcpy(handFloor, index + 1);
 
-
-	}
+        handRanks[0] = Card::CharToRank(handFloor[0]);
+        handRanks[1] = Card::CharToRank(handFloor[1]);
+        rankCeils[0] = Card::CharToRank(handCeil[0]);
+        rankCeils[1] = Card::CharToRank(handCeil[1]);
     }
-  else if (IsSuited(handText))
+    else
     {
-      StdDeck_CardMask card1, card2, hand;
-      // If a range like "A4s+" was specified, increment only the bottom card
-      // ie, "A4s, A5s, A6s, ..., AQs, AKs
-      int rank0Increment = 1;
-      if (handRanks[0] == Card::Ace)
-	rank0Increment = 0;
-      for (int rank0 = handRanks[0], rank1 = handRanks[1]; 
-	   rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
-	   rank0 += rank0Increment, rank1++)
-	{
-	  for(int suit = StdDeck_Suit_FIRST; suit <= StdDeck_Suit_LAST; suit++)
-	    {
-	      if (rank0 == rank1)
-		continue;
-	      card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank0, suit) );
-	      card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank1, suit) );
-	      StdDeck_CardMask_OR(hand, card1, card2);
-	      if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
-		{
-		  specificHands.push_back(hand);
-		  combos++;
-		}
-	    }
-	}
-    }
-  else if (IsOffSuit(handText))
-    {
-      StdDeck_CardMask card1, card2, hand;
-
-      int rank0Increment = 1;
-      if (handRanks[0] == Card::Ace)
-	rank0Increment = 0;
-
-      for (int rank0 = handRanks[0], rank1 = handRanks[1]; 
-	   rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
-	   rank0 += rank0Increment, rank1++)
-	{
-	  for(int suit1 = StdDeck_Suit_FIRST; suit1 <= StdDeck_Suit_LAST; suit1++)
-	    {
-	      for (int suit2 = StdDeck_Suit_FIRST; suit2 <= StdDeck_Suit_LAST; suit2++)
-		{
-		  if (suit1 == suit2)
-		    continue;
-
-		  card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank0, suit1) );
-		  card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank1, suit2) );
-		  StdDeck_CardMask_OR(hand, card1, card2);
-		  if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
-		    {
-		      specificHands.push_back(hand);
-		      combos++;
-		    }
-		}
-	    }
-	}
-    }
-  else
-    {
-      StdDeck_CardMask card1, card2, hand;
-
-      int rank0Increment = 1;
-      if (handRanks[0] == Card::Ace)
-	rank0Increment = 0;
-
-      for (int rank0 = handRanks[0], rank1 = handRanks[1]; 
-	   rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
-	   rank0 += rank0Increment, rank1++)
-	{
-	  for(int suit1 = StdDeck_Suit_FIRST; suit1 <= StdDeck_Suit_LAST; suit1++)
-	    {
-	      for (int suit2 = StdDeck_Suit_FIRST; suit2 <= StdDeck_Suit_LAST; suit2++)
-		{
-		  if (rank0 == rank1 && suit1 == suit2)
-		    continue;
-		  card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank0, suit1) );
-		  card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank1, suit2) );
-		  StdDeck_CardMask_OR(hand, card1, card2);
-		  if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
-		    {
-		      specificHands.push_back(hand);
-		      combos++;
-		    }
-		}
-	    }
-	}
+        handRanks[0] = Card::CharToRank(handText[0]);
+        handRanks[1] = Card::CharToRank(handText[1]);
+        rankCeils[0] = isPlus ? Card::Ace : handRanks[0];
+        rankCeils[1] = (NULL != strchr("Xx", handText[1])) ? Card::Ace : Card::King;
     }
 
-  return combos;
+    StdDeck_CardMask hand;
+
+    int combos = 0;
+
+    if (IsPair(handText))
+    {
+        StdDeck_CardMask card1, card2;
+
+        for (int rank = handRanks[0]; rank <= rankCeils[0]; rank++)
+        {
+            for(int suit1 = StdDeck_Suit_FIRST; suit1 <= StdDeck_Suit_LAST; suit1++)
+            {
+                for (int suit2 = suit1 + 1; suit2 <= StdDeck_Suit_LAST; suit2++)
+                {
+                    card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit1) );
+                    card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank, suit2) );
+                    StdDeck_CardMask_OR(hand, card1, card2);
+                    if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
+                    {
+                        specificHands.push_back(hand);
+                        combos++;
+                    }
+                }
+            }
+
+
+        }
+    }
+    else if (IsSuited(handText))
+    {
+        StdDeck_CardMask card1, card2, hand;
+        // If a range like "A4s+" was specified, increment only the bottom card
+        // ie, "A4s, A5s, A6s, ..., AQs, AKs
+        int rank0Increment = 1;
+        if (handRanks[0] == Card::Ace)
+            rank0Increment = 0;
+        for (int rank0 = handRanks[0], rank1 = handRanks[1]; 
+             rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
+             rank0 += rank0Increment, rank1++)
+        {
+            for(int suit = StdDeck_Suit_FIRST; suit <= StdDeck_Suit_LAST; suit++)
+            {
+                if (rank0 == rank1)
+                    continue;
+                card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank0, suit) );
+                card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank1, suit) );
+                StdDeck_CardMask_OR(hand, card1, card2);
+                if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
+                {
+                    specificHands.push_back(hand);
+                    combos++;
+                }
+            }
+        }
+    }
+    else if (IsOffSuit(handText))
+    {
+        StdDeck_CardMask card1, card2, hand;
+
+        int rank0Increment = 1;
+        if (handRanks[0] == Card::Ace)
+            rank0Increment = 0;
+
+        for (int rank0 = handRanks[0], rank1 = handRanks[1]; 
+             rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
+             rank0 += rank0Increment, rank1++)
+        {
+            for(int suit1 = StdDeck_Suit_FIRST; suit1 <= StdDeck_Suit_LAST; suit1++)
+            {
+                for (int suit2 = StdDeck_Suit_FIRST; suit2 <= StdDeck_Suit_LAST; suit2++)
+                {
+                    if (suit1 == suit2)
+                        continue;
+
+                    card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank0, suit1) );
+                    card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank1, suit2) );
+                    StdDeck_CardMask_OR(hand, card1, card2);
+                    if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
+                    {
+                        specificHands.push_back(hand);
+                        combos++;
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        StdDeck_CardMask card1, card2, hand;
+
+        int rank0Increment = 1;
+        if (handRanks[0] == Card::Ace)
+            rank0Increment = 0;
+
+        for (int rank0 = handRanks[0], rank1 = handRanks[1]; 
+             rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
+             rank0 += rank0Increment, rank1++)
+        {
+            for(int suit1 = StdDeck_Suit_FIRST; suit1 <= StdDeck_Suit_LAST; suit1++)
+            {
+                for (int suit2 = StdDeck_Suit_FIRST; suit2 <= StdDeck_Suit_LAST; suit2++)
+                {
+                    if (rank0 == rank1 && suit1 == suit2)
+                        continue;
+                    card1 = StdDeck_MASK( StdDeck_MAKE_CARD(rank0, suit1) );
+                    card2 = StdDeck_MASK( StdDeck_MAKE_CARD(rank1, suit2) );
+                    StdDeck_CardMask_OR(hand, card1, card2);
+                    if (!StdDeck_CardMask_ANY_SET(deadCards, hand))
+                    {
+                        specificHands.push_back(hand);
+                        combos++;
+                    }
+                }
+            }
+        }
+    }
+
+    return combos;
 }
 
 
@@ -352,9 +373,9 @@ int HoldemAgnosticHand::Instantiate(const char* handText, StdDeck_CardMask deadC
 ///////////////////////////////////////////////////////////////////////////////
 int HoldemAgnosticHand::InstantiateRandom(StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands)
 {
-  StdDeck_CardMask curHand;
-  DECK_ENUMERATE_2_CARDS_D(StdDeck, curHand, deadCards, specificHands.push_back(curHand); );
-  return specificHands.size();
+    StdDeck_CardMask curHand;
+    DECK_ENUMERATE_2_CARDS_D(StdDeck, curHand, deadCards, specificHands.push_back(curHand); );
+    return specificHands.size();
 }
 
 
@@ -366,7 +387,7 @@ int HoldemAgnosticHand::InstantiateRandom(StdDeck_CardMask deadCards, vector<Std
 ///////////////////////////////////////////////////////////////////////////////
 bool HoldemAgnosticHand::IsPair(const char* handText)
 { 
-  return (handText[0] == handText[1]);
+    return (handText[0] == handText[1]);
 }
 
 
@@ -377,7 +398,7 @@ bool HoldemAgnosticHand::IsPair(const char* handText)
 ///////////////////////////////////////////////////////////////////////////////
 bool HoldemAgnosticHand::IsSuited(const char* handText)
 { 
-  return (strlen(handText) >= 3 && handText[2] == 's');
+    return (strlen(handText) >= 3 && handText[2] == 's');
 }
 
 
@@ -388,7 +409,7 @@ bool HoldemAgnosticHand::IsSuited(const char* handText)
 ///////////////////////////////////////////////////////////////////////////////
 bool HoldemAgnosticHand::IsOffSuit(const char* handText)
 { 
-  return (strlen(handText) >= 3 && handText[2] == 'o');
+    return (strlen(handText) >= 3 && handText[2] == 'o');
 }
 
 
@@ -400,8 +421,8 @@ bool HoldemAgnosticHand::IsOffSuit(const char* handText)
 ///////////////////////////////////////////////////////////////////////////////
 bool HoldemAgnosticHand::IsInclusive(const char* handText)
 { 
-  int textlen = strlen(handText);
-  return !IsPair(handText) && ((textlen == 2) || (textlen == 3 && handText[2] == '+'));
+    int textlen = strlen(handText);
+    return !IsPair(handText) && ((textlen == 2) || (textlen == 3 && handText[2] == '+'));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -411,13 +432,87 @@ bool HoldemAgnosticHand::IsInclusive(const char* handText)
 ///////////////////////////////////////////////////////////////////////////////
 bool HoldemAgnosticHand::IsSpecificHand(const char* handText)
 {
-  if (strlen(handText) == 4)
+    if (strlen(handText) == 4)
     {
-      return (NULL != strchr("SsHhDdCc", handText[1]) && 
-	      NULL != strchr("SsHhDdCc", handText[3]) &&
-	      NULL != strchr("23456789TtJjQqKkAa", handText[0]) &&
-	      NULL != strchr("23456789TtJjQqKkAa", handText[2]));
+        return (NULL != strchr("SsHhDdCc", handText[1]) && 
+            NULL != strchr("SsHhDdCc", handText[3]) &&
+            NULL != strchr("23456789TtJjQqKkAa", handText[0]) &&
+            NULL != strchr("23456789TtJjQqKkAa", handText[2]));
     }
 
-  return false;
+    return false;
 }
+
+bool HoldemAgnosticHand::IsPercentRange(const char* handText, double &lowerBound, double &upperBound)
+{
+    char *percent, *p;
+
+    int decimal = false;
+    int digits = 0;
+    int decimals = 0;
+    bool isPercent = false;
+    lowerBound = 0.0f;
+    upperBound = 0.0f;
+
+    if (NULL != (percent = strchr(handText, '%'))) {
+        lowerBound = strtod(handText, &percent);
+        if (percent != handText) {
+            // valid double was seen
+            while (*percent == ' ') percent++;
+            if (*percent == '%') {
+                upperBound = lowerBound;
+                lowerBound = 0.0f;
+                if (upperBound <= 100.0)
+                    isPercent = true;
+                else
+                    isPercent = false;
+            }
+            else if (*percent == '-') {
+                ++percent;
+                p = percent;
+                upperBound = strtod(p, &percent);
+                if (percent != p) {
+                    // valid double was seen
+                    while (*percent == ' ') percent++;
+                    if (*percent == '%') {
+                        if (lowerBound > 0.0 && upperBound <= 100.0)
+                            isPercent = true;
+                        else
+                            isPercent = false;
+                    }
+                }
+                else {
+                    isPercent = false;
+                }
+            }
+            else {
+                isPercent = false;
+            }
+        }
+        else {
+            isPercent = false;
+        }
+    }
+    else
+        isPercent = false;
+
+    return isPercent;
+}
+
+int HoldemAgnosticHand::InstantiatePercentRange(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands)
+{
+    if ((m_isPercent = IsPercentRange(handText, m_lowerBound, m_upperBound))) {
+        int size = sizeof(HOLDEM_10_MAX_ORDERING)/sizeof(const char *);
+        int lowerBound = ((m_lowerBound * size)/100.0);
+        int upperBound = ((m_upperBound * size)/100.0);
+        int count = 0;
+        for (int i=lowerBound; i < upperBound; i++) {
+            if (Parse(HOLDEM_10_MAX_ORDERING[i], deadCards)) {
+                count += Instantiate(HOLDEM_10_MAX_ORDERING[i], deadCards, specificHands);
+            }
+        }
+        return count;
+    }
+    return 0;
+}
+
