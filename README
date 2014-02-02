@@ -1,0 +1,3 @@
+This repository contains code for parsing Holdem and Omaha hands. Derived
+from James Devlin's Holdem code at http://www.codingthewheel.com/archives/multiway-ranged-isometric-equity-calculation-in-poker-1/.
+The Omaha code is written by Atin M.
