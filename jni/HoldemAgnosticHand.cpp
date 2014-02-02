@@ -499,6 +499,16 @@ bool HoldemAgnosticHand::IsPercentRange(const char* handText, double &lowerBound
     return isPercent;
 }
 
+bool HoldemAgnosticHand::IsRandomHand(const char *handText)
+{
+    if (strlen(handText) == 4 &&
+        (handText[0] == 'X' && handText[1] == 'x') &&
+        (handText[2] == 'X' || handText[3] == 'x')) {
+        return true; // valid
+    }
+    return false;
+}
+
 int HoldemAgnosticHand::InstantiatePercentRange(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& specificHands)
 {
     if ((m_isPercent = IsPercentRange(handText, m_lowerBound, m_upperBound))) {

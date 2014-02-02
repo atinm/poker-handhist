@@ -50,6 +50,7 @@ public:
 
 	static bool IsSpecificHand(const char* handText);
 	static bool IsPercentRange(const char* handText, double &lowerBound, double &upperBound);
+    static bool IsRandomHand(const char *handText);
 
 private:
 	bool m_isPercent;
