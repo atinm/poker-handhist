@@ -1,3 +1,9 @@
-This repository contains code for parsing Holdem and Omaha hands. Derived
-from James Devlin's Holdem code at http://www.codingthewheel.com/archives/multiway-ranged-isometric-equity-calculation-in-poker-1/.
-The Omaha code is written by Atin M.
+========================================================================
+    POKER Hand Distribution parsing and creation
+========================================================================
+
+Contains classes for creating hand distributions for Texas Hold'em, Omaha.
+
+Holdem code was written by James Devlin (http://www.codingthewheel.com/archives/multiway-ranged-isometric-equity-calculation-in-poker-1/)
+Omaha code is written by Atin M (atinm.dev@gmail.com)
+
