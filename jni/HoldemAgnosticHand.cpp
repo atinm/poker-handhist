@@ -170,6 +170,157 @@ int HoldemAgnosticHand::Parse(const char* handText, StdDeck_CardMask deadCards)
     return 0;
 }
 
+char *HoldemAgnosticHand::GetEqvClasses(const char* handText)
+{
+	char *eqvClasses = NULL;
+	if (IsRandomHand(handText)) {
+		return NULL;
+	}
+
+	double low, high;
+	if (IsPercentRange(handText, low, high)) {
+        int size = sizeof(HOLDEM_10_MAX_ORDERING)/sizeof(const char *);
+        int count = 0;
+        for (int i=low; i < high && i < size; i++) {
+        	if (eqvClasses == NULL) {
+        		eqvClasses = (char *)malloc(strlen(HOLDEM_10_MAX_ORDERING[i])+1);
+        		strcpy(eqvClasses, HOLDEM_10_MAX_ORDERING[i]);
+        	}
+        	else {
+        		eqvClasses = (char *)realloc(eqvClasses, strlen(eqvClasses)+strlen(HOLDEM_10_MAX_ORDERING[i])+2);
+        		eqvClasses = strcat(eqvClasses, ",");
+        		eqvClasses = strcat(eqvClasses,  HOLDEM_10_MAX_ORDERING[i]);
+        	}
+	    }
+
+        return eqvClasses;
+	}
+
+    bool isPlus = (NULL != strchr(handText, '+'));
+    bool isSlice = (NULL != strchr(handText, '-'));
+    int handRanks[2] = {0,0};
+    int rankCeils[2] = {0,0};
+
+    if (isSlice)
+    {
+        const char* index = strchr(handText, '-');
+
+        char handCeil[4];
+        char handFloor[4];
+        strncpy(handCeil, handText, index - handText);
+        strcpy(handFloor, index + 1);
+
+        handRanks[0] = Card::CharToRank(handFloor[0]);
+        handRanks[1] = Card::CharToRank(handFloor[1]);
+        rankCeils[0] = Card::CharToRank(handCeil[0]);
+        rankCeils[1] = Card::CharToRank(handCeil[1]);
+    }
+    else
+    {
+        handRanks[0] = Card::CharToRank(handText[0]);
+        handRanks[1] = Card::CharToRank(handText[1]);
+        rankCeils[0] = isPlus ? Card::Ace : handRanks[0];
+        rankCeils[1] = (NULL != strchr("Xx", handText[1])) ? Card::Ace : Card::King;
+    }
+
+    int combos = 0;
+
+    if (IsPair(handText))
+    {
+    	char hand[4];
+
+        for (int rank = handRanks[0]; rank <= rankCeils[0]; rank++)
+        {
+        	if (eqvClasses == NULL) {
+            	hand[0] = Card::RankToChar(rank);
+            	hand[1] = Card::RankToChar(rank);
+            	hand[2] = '\0';
+        		eqvClasses = (char *)malloc(3);
+        		strcpy(eqvClasses, hand);
+        	}
+        	else {
+        		hand[0] = ','; // comma separated
+            	hand[1] = Card::RankToChar(rank);
+            	hand[2] = Card::RankToChar(rank);
+            	hand[3] = '\0';
+        		eqvClasses = (char *)realloc(eqvClasses, strlen(eqvClasses)+4);
+        		eqvClasses = strcat(eqvClasses, (const char *)hand);
+        	}
+        }
+    }
+    else if (IsSuited(handText))
+    {
+        // If a range like "A4s+" was specified, increment only the bottom card
+        // ie, "A4s, A5s, A6s, ..., AQs, AKs
+        int rank0Increment = 1;
+        if (handRanks[0] == Card::Ace)
+            rank0Increment = 0;
+        for (int rank0 = handRanks[0], rank1 = handRanks[1];
+             rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
+             rank0 += rank0Increment, rank1++)
+        {
+            if (rank0 == rank1)
+                continue;
+
+        	char hand[5];
+        	if (eqvClasses == NULL) {
+            	hand[0] = Card::RankToChar(rank0);
+            	hand[1] = Card::RankToChar(rank1);
+            	hand[2] = 's';
+            	hand[3] = '\0';
+        		eqvClasses = (char *)malloc(4);
+        		strcpy(eqvClasses, hand);
+        	}
+        	else {
+        		hand[0] = ','; // comma separated
+            	hand[1] = Card::RankToChar(rank0);
+            	hand[2] = Card::RankToChar(rank1);
+            	hand[3] = 's';
+            	hand[4] = '\0';
+        		eqvClasses = (char *)realloc(eqvClasses, strlen(eqvClasses)+5);
+        		eqvClasses = strcat(eqvClasses, (const char *)hand);
+        	}
+        }
+    }
+    else if (IsOffSuit(handText))
+    {
+        int rank0Increment = 1;
+        if (handRanks[0] == Card::Ace)
+            rank0Increment = 0;
+
+        for (int rank0 = handRanks[0], rank1 = handRanks[1];
+             rank0 <= rankCeils[0] && rank1 <= rankCeils[1];
+             rank0 += rank0Increment, rank1++)
+        {
+            if (rank0 == rank1)
+                continue;
+
+        	char hand[5];
+        	if (eqvClasses == NULL) {
+            	hand[0] = Card::RankToChar(rank0);
+            	hand[1] = Card::RankToChar(rank1);
+            	hand[2] = 'o';
+            	hand[3] = '\0';
+        		eqvClasses = (char *)malloc(4);
+        		strcpy(eqvClasses, hand);
+        	}
+        	else {
+        		hand[0] = ','; // comma separated
+            	hand[1] = Card::RankToChar(rank0);
+            	hand[2] = Card::RankToChar(rank1);
+            	hand[3] = 'o';
+            	hand[4] = '\0';
+        		eqvClasses = (char *)realloc(eqvClasses, strlen(eqvClasses)+5);
+        		eqvClasses = strcat(eqvClasses, (const char *)hand);
+        	}
+
+        }
+    }
+
+	return eqvClasses;
+}
+
+
 int HoldemAgnosticHand::Instantiate(const char* handText, const char* deadText, vector<StdDeck_CardMask>& specificHands)
 {
     StdDeck_CardMask deadCards;

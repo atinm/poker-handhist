@@ -45,6 +45,8 @@ public:
 	static int Parse(const char* handText, const char* deadCards);
 	static int Parse(const char* handText, StdDeck_CardMask deadCards);
 
+	static char *GetEqvClasses(const char* handText);
+
 	int Instantiate(const char* handText, const char* deadCards, vector<StdDeck_CardMask>& hands);
 	int Instantiate(const char* handText, StdDeck_CardMask deadCards, vector<StdDeck_CardMask>& hands);
 
