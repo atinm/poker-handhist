@@ -35,6 +35,9 @@
 #define dbg_printf(...)
 #define dbg_printMask(...)
 #endif
+
+const char **OmahaOrdering = NULL;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Take a given agnostic hand, such as "AKQJ" or "T+T+T+T+" or "A-TA-TTT-77", along with
 // an optional collection of "dead" cards, and boil it down into its constituent
@@ -1039,8 +1042,8 @@ int OmahaAgnosticHand::InstantiatePercentRange(const char* handText, StdDeck_Car
         int upperBound = ((m_upperBound * size)/100.0);
         int count = 0;
         for (int i=lowerBound; i < upperBound; i++) {
-            if (Parse(OMAHA_10_MAX_ORDERING[i], deadCards)) {
-                count += this->Instantiate(OMAHA_10_MAX_ORDERING[i], deadCards, specificHands);
+            if (Parse(OmahaOrdering[i], deadCards)) {
+                count += this->Instantiate(OmahaOrdering[i], deadCards, specificHands);
             }
         }
         return count;

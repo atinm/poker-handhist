@@ -20,6 +20,9 @@
 
 #pragma once
 
+// global table pointer
+extern const char **HoldemOrdering;
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // An "agnostic hand" is a Texas Hold'em starting hand devoid of specific

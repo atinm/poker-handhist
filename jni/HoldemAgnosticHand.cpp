@@ -29,6 +29,7 @@
 #define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
 #define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
 
+const char **HoldemOrdering = NULL;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Take a given agnostic hand, such as "AA" or "QJs+" or "TT-77", along with
@@ -183,13 +184,13 @@ char *HoldemAgnosticHand::GetEqvClasses(const char* handText)
         int count = 0;
         for (int i=low; i < high && i < size; i++) {
         	if (eqvClasses == NULL) {
-        		eqvClasses = (char *)malloc(strlen(HOLDEM_10_MAX_ORDERING[i])+1);
-        		strcpy(eqvClasses, HOLDEM_10_MAX_ORDERING[i]);
+        		eqvClasses = (char *)malloc(strlen(HoldemOrdering[i])+1);
+        		strcpy(eqvClasses, HoldemOrdering[i]);
         	}
         	else {
-        		eqvClasses = (char *)realloc(eqvClasses, strlen(eqvClasses)+strlen(HOLDEM_10_MAX_ORDERING[i])+2);
+        		eqvClasses = (char *)realloc(eqvClasses, strlen(eqvClasses)+strlen(HoldemOrdering[i])+2);
         		eqvClasses = strcat(eqvClasses, ",");
-        		eqvClasses = strcat(eqvClasses,  HOLDEM_10_MAX_ORDERING[i]);
+        		eqvClasses = strcat(eqvClasses,  HoldemOrdering[i]);
         	}
 	    }
 
@@ -668,8 +669,8 @@ int HoldemAgnosticHand::InstantiatePercentRange(const char* handText, StdDeck_Ca
         int upperBound = ((m_upperBound * size)/100.0);
         int count = 0;
         for (int i=lowerBound; i < upperBound; i++) {
-            if (Parse(HOLDEM_10_MAX_ORDERING[i], deadCards)) {
-                count += Instantiate(HOLDEM_10_MAX_ORDERING[i], deadCards, specificHands);
+            if (Parse(HoldemOrdering[i], deadCards)) {
+                count += Instantiate(HoldemOrdering[i], deadCards, specificHands);
             }
         }
         return count;
