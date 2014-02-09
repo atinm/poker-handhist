@@ -20,6 +20,9 @@
 
 #pragma once
 
+// global table pointer
+extern const char **OmahaOrdering;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Single hands
 // To specify a single hand for example type AsQc7h3d
